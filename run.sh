@@ -1,0 +1,2 @@
+make -s
+./build/llambda
