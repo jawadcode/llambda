@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -24,7 +25,10 @@ static char peek(Lexer *lexer) { return *lexer->current; }
 
 static void skip(Lexer *lexer) { lexer->current++; }
 
-static char advance(Lexer *lexer) { return *(lexer->current++); }
+static char advance(Lexer *lexer) {
+    lexer->current++;
+    return lexer->current[-1];
+}
 
 static char safe_advance(Lexer *lexer) {
     if (is_at_end(lexer)) {
@@ -44,18 +48,20 @@ static bool match(Lexer *lexer, char expected) {
 }
 
 void skip_whitespace(Lexer *lexer) {
-    while (true) {
+    for (;;) {
+        putc(peek(lexer) == '\0', stdout);
         switch (peek(lexer)) {
         case ' ':
         case '\r':
         case '\t':
-            advance(lexer);
+            skip(lexer);
             break;
         case '\n':
+            lexer->line++;
             skip(lexer);
-            advance(lexer);
             break;
         case '#':
+            skip(lexer);
             while (peek(lexer) != '\n' && !is_at_end(lexer))
                 advance(lexer);
             break;
@@ -111,7 +117,7 @@ TokenKind ident_type(Lexer *lexer) {
 }
 
 static TokenKind ident(Lexer *lexer) {
-    while (is_ident(peek(lexer) || is_digit(peek(lexer))))
+    while (is_ident(peek(lexer)) || is_digit(peek(lexer)))
         skip(lexer);
     return ident_type(lexer);
 }
@@ -146,48 +152,51 @@ static TokenKind string(Lexer *lexer) {
     return TK_STRING;
 }
 
+static TokenKind next_kind(Lexer *lexer) {
+    if (is_at_end(lexer))
+        return TK_EOF;
+
+    char c = advance(lexer);
+    if (is_ident(c))
+        return ident(lexer);
+    if (is_digit(c))
+        return number(lexer);
+
+    switch (c) {
+    case '(':
+        return TK_LPAREN;
+    case ')':
+        return TK_RPAREN;
+    case ',':
+        return TK_COMMA;
+    case '+':
+        return TK_ADD;
+    case '-':
+        return TK_SUB;
+    case '*':
+        return TK_MUL;
+    case '/':
+        return TK_DIV;
+    case '!':
+        return match(lexer, '=') ? TK_NEQ : TK_INVALID;
+    case '=':
+        return match(lexer, '=') ? TK_EQ : TK_ASSIGN;
+    case '<':
+        return match(lexer, '=') ? TK_LEQ : TK_LT;
+    case '>':
+        return match(lexer, '=') ? TK_GEQ : TK_GT;
+    case '"':
+        return string(lexer);
+    default:
+        return TK_INVALID;
+    }
+}
+
 Token next_token(Lexer *lexer) {
     skip_whitespace(lexer);
 
     lexer->start = lexer->current;
-    TokenKind kind;
-
-    if (is_at_end(lexer))
-        kind = TK_EOF;
-
-    char c = advance(lexer);
-    if (is_ident(c)) {
-        kind = ident_type(lexer);
-    }
-    else if (is_digit(c)) {
-        kind = number(lexer);
-    }
-    else {
-        switch (c) {
-    case '(': kind = TK_LPAREN;
-    case ')': kind = TK_RPAREN;
-    case ',': return makeToken(TOKEN_COMMA);
-    case '.': return makeToken(TOKEN_DOT);
-    case '-': return makeToken(TOKEN_MINUS);
-    case '+': return makeToken(TOKEN_PLUS);
-    case '/': return makeToken(TOKEN_SLASH);
-    case '*': return makeToken(TOKEN_STAR);
-    case '!':
-      return makeToken(
-          match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
-    case '=':
-      return makeToken(
-          match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-    case '<':
-      return makeToken(
-          match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
-    case '>':
-      return makeToken(
-          match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
-
-    case '"': return string();
-  }
-    }
+    TokenKind kind = next_kind(lexer);
 
     return (Token){
         .kind = kind,
@@ -196,3 +205,114 @@ Token next_token(Lexer *lexer) {
         .line = lexer->line,
     };
 }
+
+static unsigned int count_digits(unsigned int number) {
+    return floor(log10((double)number)) + 1;
+}
+
+static const char *token_kind_to_string(TokenKind kind) {
+    switch (kind) {
+    case TK_LET:
+        return "KEYWORD LET";
+    case TK_IN:
+        return "KEYWORD IN";
+    case TK_FUN:
+        return "KEYWORD FUN";
+    case TK_IF:
+        return "KEYWORD IF";
+    case TK_THEN:
+        return "KEYWORD THEN";
+    case TK_ELSE:
+        return "KEYWORD ELSE";
+    case TK_PRINT:
+        return "KEYWORD PRINT";
+    case TK_TRUE:
+        return "KEYWORD TRUE";
+    case TK_FALSE:
+        return "KEYWORD FALSE";
+    case TK_UNIT:
+        return "KEYWORD UNIT";
+    case TK_NUMBER:
+        return "NUMERIC LITERAL";
+    case TK_STRING:
+        return "STRING LITERAL";
+    case TK_IDENT:
+        return "IDENTIFIER";
+    case TK_ASSIGN:
+        return "ASSIGN";
+    case TK_ARROW:
+        return "ARROW";
+    case TK_LPAREN:
+        return "LEFT PAREN";
+    case TK_RPAREN:
+        return "RIGHT PAREN";
+    case TK_COMMA:
+        return "COMMA";
+    case TK_FNPIPE:
+        return "OPERATOR PIPE";
+    case TK_ADD:
+        return "OPERATOR ADD";
+    case TK_SUB:
+        return "OPERATOR SUB";
+    case TK_MUL:
+        return "OPERATOR MUL";
+    case TK_DIV:
+        return "OPERATOR DIV";
+    case TK_NOT:
+        return "OPERATOR NOT";
+    case TK_AND:
+        return "OPERATOR AND";
+    case TK_OR:
+        return "OPERATOR OR";
+    case TK_LT:
+        return "OPERATOR LESS THAN";
+    case TK_LEQ:
+        return "OPERATOR LESS THAN OR EQUAL TO";
+    case TK_GT:
+        return "OPERATOR GREATER THAN";
+    case TK_GEQ:
+        return "OPEARATOR GREATER THAN OR EQUAL TO";
+    case TK_EQ:
+        return "OPERATOR EQUAL TO";
+    case TK_NEQ:
+        return "OPERATOR NOT EQUAL TO";
+    case TK_INVALID:
+        return "INVALID TOKEN";
+    case TK_EOF:
+        return "END OF FILE";
+    }
+    return "THIS IS LITERALLY UNREACHABLE YOU STUPID BLOODY COMPILER";
+}
+
+const char *token_to_string(const char *source, Token token) {
+    const char *kind = token_kind_to_string(token.kind);
+    size_t start = token.start - source;
+    size_t end = start + token.length;
+
+    char *res = (char *)malloc(sizeof(char) * (
+                                                  // name of token
+                                                  strlen(kind) +
+                                                  // " @ "
+                                                  2 +
+                                                  // start of span
+                                                  count_digits(start) +
+                                                  // ".."
+                                                  2 +
+                                                  // end of span
+                                                  count_digits(end) +
+                                                  // " = "
+                                                  3 +
+                                                  // length of token
+                                                  token.length +
+                                                  // null terminator (i think)
+                                                  1));
+    char *text = (char *)malloc(token.length * sizeof(char));
+    text = (char *)memcpy(text, token.start, token.length);
+    text = (char *)reallocate(text, token.length * sizeof(char), (token.length + 1) * sizeof(char));
+    text[token.length] = '\0';
+    sprintf(res, "%s @ %zu..%zu = %s", kind, start, end, text);
+
+    return res;
+}
+
+VecImpl(Token)

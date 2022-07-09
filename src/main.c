@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lexer.h"
+#include "vec.h"
+
 void run_cmd(const char *cmd) {
     switch (cmd[0]) {
     case 'e':
@@ -39,7 +42,18 @@ void run_cmd(const char *cmd) {
     }
 }
 
-void run(const char *source) { puts(source); }
+void run(const char *source) {
+    Lexer lexer = new_lexer(source);
+    TokenVec tokens = TokenVec_new();
+
+    while (true) {
+        Token token = next_token(&lexer);
+        puts(token_to_string(source, token));
+        TokenVec_push(&tokens, token);
+        if (token.kind == TK_EOF)
+            break;
+    }
+}
 
 void repl() {
     char *buffer;

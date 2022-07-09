@@ -1,6 +1,7 @@
 #ifndef LLAMBDA_LEXER_H
 #define LLAMBDA_LEXER_H
 
+#include "vec.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -10,9 +11,6 @@ typedef struct {
     const char *current;
     uint64_t line;
 } Lexer;
-
-// Create a new lexer that operates on "source"
-Lexer new_lexer(const char *source);
 
 // An enumeration of the different kinds of tokens
 typedef enum {
@@ -38,6 +36,7 @@ typedef enum {
     TK_ARROW,  // "=>"
     TK_LPAREN, // "("
     TK_RPAREN, // ")"
+    TK_COMMA,  // ","
     TK_FNPIPE, // "|>"
 
     /* ARITHMETIC OPS */
@@ -72,5 +71,16 @@ typedef struct {
     size_t length;
     uint64_t line;
 } Token;
+
+VecHeader(Token)
+
+    // Create a new lexer that operates on `source`
+    Lexer new_lexer(const char *source);
+
+// Scan the next token from `lexer->source`
+Token next_token(Lexer *lexer);
+
+// Convert a token to a string
+const char *token_to_string(const char *source, Token token);
 
 #endif
