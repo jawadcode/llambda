@@ -1,1 +1,4 @@
-smelly boots
+let add = fun a b => a + b,
+    sub = fun a b => a - b
+in
+    sub 5 (add 2 3) == 0
